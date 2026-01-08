@@ -1,6 +1,9 @@
 FROM python:3.13-slim
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
+# git needed for datadirtest
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+
 # uncomment the following line should you have any troubles installing certain packages which require C/C++ extensions
 # to be compiled during installation, eg. numpy, psycopg2, …
 # RUN apt-get update && apt-get install -y build-essential
@@ -18,5 +21,7 @@ COPY tests/ tests
 COPY scripts/ scripts
 COPY flake8.cfg .
 COPY deploy.sh .
+
+ENV PYTHONPATH="/code/src"
 
 CMD ["python", "-u", "src/component.py"]

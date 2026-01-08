@@ -1,1 +1,73 @@
-{}
+{
+  "type": "object",
+  "title": "File Extraction Configuration",
+  "description": "Configure file extraction settings",
+  "required": [
+    "files"
+  ],
+  "properties": {
+    "files": {
+      "type": "array",
+      "title": "File Selection",
+      "description": "Select files from the server or enter file paths/patterns manually. Supports wildcards (e.g., /data/*.csv, /logs/**/*.txt for recursive)",
+      "items": {
+        "enum": [],
+        "type": "string",
+        "format": "select"
+      },
+      "format": "select",
+      "uniqueItems": true,
+      "propertyOrder": 10,
+      "options": {
+        "tags": true,
+        "async": {
+          "label": "Load files",
+          "action": "list_files",
+          "autoload": []
+        },
+        "creatable": true
+      }
+    },
+    "include_path_in_filename": {
+      "type": "boolean",
+      "title": "Include Directory Path in Filename",
+      "format": "checkbox",
+      "default": false,
+      "description": "Controls output filename format. If disabled (default), extracts only the filename (e.g., some-folder/file.txt -> file.txt). If enabled, preserves the path in the filename with underscores (e.g., some-folder/file.txt -> some-folder_file.txt). All files are always saved to the root of out/files/ directory.",
+      "propertyOrder": 50
+    },
+    "append_timestamp": {
+      "type": "boolean",
+      "title": "Append Extraction Timestamp",
+      "format": "checkbox",
+      "default": false,
+      "description": "If enabled, adds extraction timestamp to filename (e.g., file_20240108123456.csv)",
+      "propertyOrder": 60
+    },
+    "incremental_mode": {
+      "type": "boolean",
+      "title": "Incremental Extraction",
+      "format": "checkbox",
+      "default": false,
+      "description": "If enabled, only extracts files that are new or modified since the last extraction",
+      "propertyOrder": 70
+    },
+    "tags": {
+      "type": "array",
+      "title": "File Tags (Optional)",
+      "description": "Tags to add to extracted files in Keboola Storage",
+      "items": {
+        "type": "string"
+      },
+      "propertyOrder": 80
+    },
+    "debug": {
+      "type": "boolean",
+      "title": "Debug Mode",
+      "format": "checkbox",
+      "default": false,
+      "description": "If enabled, the component will produce detailed logs",
+      "propertyOrder": 90
+    }
+  }
+}

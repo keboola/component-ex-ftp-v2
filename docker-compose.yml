@@ -7,6 +7,7 @@ services:
         - ./data:/data
     environment:
       - KBC_DATADIR=./data
+
   test:
     # Use to run flake8 and unittests checks
     build: .
@@ -15,6 +16,40 @@ services:
       - ./data:/data
     environment:
       - KBC_DATADIR=./data
+      - FTP_HOST=ftp
+      - SFTP_HOST=sftp
+    depends_on:
+      ftp:
+        condition: service_started
+      sftp:
+        condition: service_started
     command:
       - /bin/sh
-      - /code/scripts/build_n_test.sh
+      - -c
+      - |
+        echo "Waiting for FTP and SFTP servers to be ready..."
+        sleep 3
+        /bin/sh /code/scripts/build_n_test.sh
+
+  # FTP server for testing
+  ftp:
+    image: fauria/vsftpd
+    environment:
+      - FTP_USER=testuser
+      - FTP_PASS=testpass
+      - PASV_MIN_PORT=21100
+      - PASV_MAX_PORT=21110
+    volumes:
+      - ./tests/ftp-data:/home/vsftpd/testuser
+    ports:
+      - "21:21"
+      - "21100-21110:21100-21110"
+
+  # SFTP server for testing
+  sftp:
+    image: atmoz/sftp
+    volumes:
+      - ./tests/ftp-data:/home/testuser/upload
+    command: testuser:testpass:::upload
+    ports:
+      - "2222:22"
