@@ -1,0 +1,1 @@
+https://github.com/keboola/component-ex-ftp-v2/blob/master/README.md
