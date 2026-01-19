@@ -73,6 +73,7 @@ class Component(ComponentBase):
             if self._client:
                 self._client.disconnect()
 
+    @sync_action("testConnection")
     def test_connection(self):
         protocol = self.config.connection.protocol.value.upper()
         hostname = self.config.connection.hostname
