@@ -114,6 +114,9 @@ jobs:
       - push_event_info
       - build
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -123,13 +126,10 @@ jobs:
           name: ${{ env.KBC_DEVELOPERPORTAL_APP }}
           path: /tmp
 
-      - name: Load Image & Run Tests
+      - name: Run Tests
         run: |
-          docker load --input /tmp/${{ env.KBC_DEVELOPERPORTAL_APP }}.tar
-          docker image ls -a
-          docker run ${{ env.KBC_DEVELOPERPORTAL_APP }}:latest flake8 . --config=flake8.cfg
           echo "Running unit-tests..."
-          docker run ${{ env.KBC_DEVELOPERPORTAL_APP }}:latest python -m unittest discover
+          docker compose up test --exit-code-from test
 
   tests-kbc:
     name: Run KBC Tests
@@ -187,7 +187,7 @@ jobs:
           app_id: ${{ env.KBC_DEVELOPERPORTAL_APP }}
           username: ${{ env.KBC_DEVELOPERPORTAL_USERNAME }}
           password: ${{ secrets.KBC_DEVELOPERPORTAL_PASSWORD }}
-          tag: ${{ needs.push_event_info.outputs.app_image_tag }}
+          tag: ${{ needs.push_event_info.outputs.app_image_tag }}-${{ github.run_id }}
           push_latest: ${{ needs.push_event_info.outputs.is_deploy_ready }}
           source_image: ${{ env.KBC_DEVELOPERPORTAL_APP }}
 

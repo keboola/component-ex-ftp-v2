@@ -1,19 +1,149 @@
 {
   "type": "object",
-  "title": "extractor configuration",
+  "title": "FTP / SFTP / FTPS Extractor",
   "required": [
-    "print_hello"
+    "connection"
   ],
   "properties": {
-    "print_hello": {
-      "type": "boolean",
-      "title": "Print Hello",
-      "propertyOrder": 1
+    "connection": {
+      "type": "object",
+      "title": "Connection",
+      "required": [
+        "protocol",
+        "hostname",
+        "port",
+        "user",
+        "#pass"
+      ],
+      "properties": {
+        "protocol": {
+          "enum": [
+            "sftp",
+            "ftp",
+            "ex-ftps",
+            "im-ftps"
+          ],
+          "options": {
+            "enum_titles": [
+              "SFTP",
+              "FTP",
+              "FTPS (Explicit)",
+              "FTPS (Implicit)"
+            ]
+          },
+          "type": "string",
+          "title": "Protocol",
+          "propertyOrder": 10,
+          "default": "sftp"
+        },
+        "hostname": {
+          "type": "string",
+          "title": "Host URL",
+          "propertyOrder": 15
+        },
+        "port": {
+          "type": "integer",
+          "default": 22,
+          "title": "Host Port",
+          "options": {
+            "tooltip": "The default port number is 22 for SFTP, 21 for FTP, and 990 for Implicit FTPS."
+          },
+          "propertyOrder": 20
+        },
+        "user": {
+          "type": "string",
+          "title": "User Name",
+          "propertyOrder": 30
+        },
+        "#pass": {
+          "type": "string",
+          "title": "Password",
+          "format": "password",
+          "propertyOrder": 40
+        },
+        "#passphrase": {
+          "type": "string",
+          "title": "SSH Key Passphrase (Optional)",
+          "format": "password",
+          "description": "Passphrase for encrypted SSH private key",
+          "propertyOrder": 42,
+          "options": {
+            "dependencies": {
+              "protocol": "sftp"
+            }
+          }
+        },
+        "ssh": {
+          "type": "object",
+          "format": "ssh-editor",
+          "options": {
+            "only_keys": true,
+            "dependencies": {
+              "protocol": "sftp"
+            }
+          },
+          "propertyOrder": 45
+        },
+        "disabled_algorithms": {
+          "type": "string",
+          "title": "Algorithms to Disable (Optional)",
+          "description": "Disabled algorithms in JSON format, e.g., {\"pubkeys\": [\"rsa-sha2-256\", \"rsa-sha2-512\"]}. See <a href='https://docs.paramiko.org/en/latest/api/transport.html'>Paramiko documentation</a>.",
+          "propertyOrder": 50,
+          "options": {
+            "dependencies": {
+              "protocol": "sftp"
+            }
+          }
+        },
+        "banner_timeout": {
+          "type": "integer",
+          "default": 120,
+          "title": "Banner Timeout (Optional)",
+          "description": "Timeout in seconds to wait for SSH banner. Default is 120 seconds. Increase this for slow or overloaded servers.",
+          "propertyOrder": 60,
+          "options": {
+            "dependencies": {
+              "protocol": "sftp"
+            }
+          }
+        },
+        "passive_mode": {
+          "type": "boolean",
+          "title": "Passive Mode",
+          "format": "checkbox",
+          "default": true,
+          "propertyOrder": 70,
+          "options": {
+            "dependencies": {
+              "protocol": [
+                "ftp",
+                "ex-ftps",
+                "im-ftps"
+              ]
+            }
+          }
+        },
+        "connection_timeout": {
+          "type": "integer",
+          "default": 30,
+          "title": "Connection Timeout (seconds)",
+          "description": "Timeout for establishing connection to the server",
+          "propertyOrder": 80
+        },
+        "max_retries": {
+          "type": "integer",
+          "default": 2,
+          "title": "Maximum Retries",
+          "description": "Maximum number of retry attempts for failed operations",
+          "propertyOrder": 90
+        }
+      },
+      "propertyOrder": 10
     },
-    "debug": {
-      "type": "boolean",
-      "title": "Debug",
-      "propertyOrder": 2
+    "test_connection": {
+      "type": "button",
+      "format": "test-connection",
+      "propertyOrder": 100
     }
   }
 }

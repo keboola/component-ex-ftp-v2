@@ -1,0 +1,27 @@
+{
+  "parameters": {
+    "connection": {
+      "protocol": "sftp",
+      "hostname": "sftp",
+      "port": 22,
+      "user": "testuser",
+      "#pass": "testpass",
+      "connection_timeout": 30,
+      "max_retries": 2,
+      "base_path": "upload"
+    },
+    "include_path_in_filename": false,
+    "append_timestamp": false,
+    "incremental_mode": true,
+    "tags": [],
+    "debug": true,
+    "files": [
+      "/*.csv"
+    ]
+  },
+  "image_parameters": {},
+  "action": "run",
+  "shared_code_row_ids": [],
+  "storage": {},
+  "authorization": {}
+}

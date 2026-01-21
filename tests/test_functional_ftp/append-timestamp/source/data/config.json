@@ -1,0 +1,27 @@
+{
+  "parameters": {
+    "connection": {
+      "protocol": "ftp",
+      "hostname": "ftp",
+      "port": 21,
+      "user": "testuser",
+      "#pass": "testpass",
+      "passive_mode": true,
+      "connection_timeout": 30,
+      "max_retries": 2
+    },
+    "include_path_in_filename": false,
+    "append_timestamp": true,
+    "incremental_mode": false,
+    "tags": [],
+    "debug": true,
+    "files": [
+      "days.csv"
+    ]
+  },
+  "image_parameters": {},
+  "action": "run",
+  "shared_code_row_ids": [],
+  "storage": {},
+  "authorization": {}
+}

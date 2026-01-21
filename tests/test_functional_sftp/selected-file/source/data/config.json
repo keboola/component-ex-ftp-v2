@@ -1,0 +1,31 @@
+{
+  "parameters": {
+    "connection": {
+      "protocol": "sftp",
+      "hostname": "sftp",
+      "port": 22,
+      "user": "testuser",
+      "#pass": "testpass",
+      "connection_timeout": 30,
+      "max_retries": 2,
+      "base_path": "upload"
+    },
+    "include_path_in_filename": true,
+    "append_timestamp": false,
+    "incremental_mode": false,
+    "tags": [
+      "a",
+      "b"
+    ],
+    "debug": true,
+    "files": [
+      "days.csv",
+      "sliced/a.csv"
+    ]
+  },
+  "image_parameters": {},
+  "action": "run",
+  "shared_code_row_ids": [],
+  "storage": {},
+  "authorization": {}
+}
