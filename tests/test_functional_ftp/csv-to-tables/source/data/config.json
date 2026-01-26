@@ -11,9 +11,7 @@
       "max_retries": 2
     },
     "mode": "table",
-    "files": [
-      "days.csv"
-    ],
+    "table_file": "days.csv",
     "has_header": false,
     "destination": {
       "table_name": "days",

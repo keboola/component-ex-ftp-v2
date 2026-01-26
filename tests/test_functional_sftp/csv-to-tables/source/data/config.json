@@ -12,9 +12,7 @@
       "base_path": "upload"
     },
     "mode": "table",
-    "files": [
-      "days.csv"
-    ],
+    "table_file": "days.csv",
     "has_header": false,
     "destination": {
       "load_type": "incremental_load",

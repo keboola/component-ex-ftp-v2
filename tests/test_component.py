@@ -53,8 +53,8 @@ class TestComponent(unittest.TestCase):
                 self.assertIn("/sliced/a.csv", file_paths)
                 self.assertIn("/sliced/b.csv", file_paths)
 
-    def test_table_mode_validation_single_file_required(self):
-        """Test that table mode requires exactly one file path"""
+    def test_table_mode_validation_file_required(self):
+        """Test that table mode requires a file path (table_file or files)"""
         config = {
             "connection": {
                 "protocol": "ftp",
@@ -64,7 +64,8 @@ class TestComponent(unittest.TestCase):
                 "#pass": "testpass",
             },
             "mode": "table",
-            "files": ["file1.csv", "file2.csv"],  # Multiple files not allowed
+            "table_file": "",  # No table_file
+            "files": [],  # No files either
             "destination": {"table_name": "test_table"},
         }
 
@@ -83,7 +84,7 @@ class TestComponent(unittest.TestCase):
                 "#pass": "testpass",
             },
             "mode": "table",
-            "files": ["*.csv"],  # Wildcards not allowed
+            "table_file": "*.csv",  # Wildcards not allowed
             "destination": {"table_name": "test_table"},
         }
 
@@ -127,7 +128,33 @@ class TestComponent(unittest.TestCase):
         self.assertEqual(cfg.mode, Mode.file)
 
     def test_table_mode_config_valid(self):
-        """Test valid table mode configuration"""
+        """Test valid table mode configuration with table_file"""
+        config = {
+            "connection": {
+                "protocol": "ftp",
+                "hostname": "ftp",
+                "port": 21,
+                "user": "testuser",
+                "#pass": "testpass",
+            },
+            "mode": "table",
+            "table_file": "data/books.csv",
+            "destination": {
+                "table_name": "books",
+                "load_type": "incremental_load",
+                "primary_key": ["id"],
+            },
+        }
+
+        cfg = Configuration(**config)
+        self.assertEqual(cfg.mode, Mode.table)
+        self.assertEqual(cfg.table_file, "data/books.csv")
+        self.assertEqual(cfg.destination.table_name, "books")
+        self.assertEqual(cfg.destination.primary_key, ["id"])
+        self.assertTrue(cfg.destination.incremental)
+
+    def test_table_mode_config_fallback_to_files(self):
+        """Test that table mode falls back to files[0] if table_file not set"""
         config = {
             "connection": {
                 "protocol": "ftp",
@@ -147,9 +174,8 @@ class TestComponent(unittest.TestCase):
 
         cfg = Configuration(**config)
         self.assertEqual(cfg.mode, Mode.table)
-        self.assertEqual(cfg.destination.table_name, "books")
-        self.assertEqual(cfg.destination.primary_key, ["id"])
-        self.assertTrue(cfg.destination.incremental)
+        # Validation should pass using files[0] as fallback
+        self.assertEqual(cfg.files[0], "data/books.csv")
 
     def test_table_mode_has_header_default_true(self):
         """Test that has_header defaults to True"""

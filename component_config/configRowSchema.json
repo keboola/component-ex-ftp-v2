@@ -26,7 +26,7 @@
     "files": {
       "type": "array",
       "title": "File Selection",
-      "description": "Select files from the server or enter file paths/patterns manually. In File Mode, wildcards are supported (e.g., /data/*.csv, /logs/**/*.txt). In Table Mode, specify exactly one file path without wildcards.",
+      "description": "Select files from the server or enter file paths/patterns manually. Wildcards are supported (e.g., /data/*.csv, /logs/**/*.txt for recursive).",
       "items": {
         "enum": [],
         "type": "string",
@@ -42,7 +42,29 @@
           "action": "list_files",
           "autoload": []
         },
-        "creatable": true
+        "creatable": true,
+        "dependencies": {
+          "mode": "file"
+        }
+      }
+    },
+    "table_file": {
+      "type": "string",
+      "title": "Table File",
+      "description": "Select a single file from the server or enter file path manually. Wildcards are not allowed.",
+      "enum": [],
+      "format": "select",
+      "propertyOrder": 15,
+      "options": {
+        "async": {
+          "label": "Load files",
+          "action": "list_files",
+          "autoload": []
+        },
+        "creatable": true,
+        "dependencies": {
+          "mode": "table"
+        }
       }
     },
     "include_path_in_filename": {
@@ -147,20 +169,55 @@
         "primary_key": {
           "type": "array",
           "title": "Primary Key",
-          "description": "List of column names that form the primary key",
+          "description": "List of column names that form the primary key. Load from CSV or enter manually.",
           "items": {
-            "type": "string"
+            "enum": [],
+            "type": "string",
+            "format": "select"
           },
-          "propertyOrder": 30
+          "format": "select",
+          "uniqueItems": true,
+          "propertyOrder": 30,
+          "options": {
+            "tags": true,
+            "async": {
+              "label": "Load columns from CSV",
+              "action": "load_csv_columns",
+              "autoload": []
+            },
+            "creatable": true
+          }
+        },
+        "helper_has_header": {
+          "type": "string",
+          "description": "Helper element to watch has_header for columns dependency",
+          "template": "{{val}}",
+          "watch": {
+            "val": "has_header"
+          },
+          "options": {
+            "hidden": true
+          }
         },
         "columns": {
           "type": "array",
           "title": "Column Names",
-          "description": "Required when Has Header is false. Define column names in order.",
+          "description": "Define column names in order (e.g., col1, col2, col3).",
           "items": {
-            "type": "string"
+            "enum": [],
+            "type": "string",
+            "format": "select"
           },
-          "propertyOrder": 40
+          "format": "select",
+          "uniqueItems": true,
+          "propertyOrder": 40,
+          "options": {
+            "tags": true,
+            "creatable": true,
+            "dependencies": {
+              "helper_has_header": "false"
+            }
+          }
         }
       }
     },

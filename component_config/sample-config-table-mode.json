@@ -21,9 +21,7 @@
       "max_retries": 2
     },
     "mode": "table",
-    "files": [
-      "/data/sales.csv"
-    ],
+    "table_file": "/data/sales.csv",
     "has_header": false,
     "destination": {
       "table_name": "sales_data",

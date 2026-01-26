@@ -94,6 +94,7 @@ class Configuration(BaseModel):
     connection: Connection
     mode: Mode = Field(default=Mode.file)
     files: list[str] = Field(default_factory=list)
+    table_file: str = ""
     include_path_in_filename: bool = False
     append_timestamp: bool = False
     incremental_mode: bool = False
@@ -114,11 +115,14 @@ class Configuration(BaseModel):
 
         # Validate table mode requirements
         if self.mode == Mode.table:
-            if not self.files or len(self.files) != 1:
+            # In table mode, use table_file field or fallback to files[0]
+            file_path = self.table_file or (self.files[0] if self.files else None)
+
+            if not file_path:
                 raise UserException("Table mode requires exactly one file path")
 
             # Check for wildcards in the file path
-            if any(char in self.files[0] for char in ["*", "?"]):
+            if any(char in file_path for char in ["*", "?"]):
                 raise UserException("Wildcards are not allowed in table mode")
 
             # Validate columns requirement when has_header is False

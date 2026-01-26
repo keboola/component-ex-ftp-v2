@@ -142,8 +142,65 @@ class Component(ComponentBase):
             logging.error(error_msg)
             raise UserException(error_msg)
 
+    @sync_action("load_csv_columns")
+    def load_csv_columns(self):
+        logging.info("Loading CSV columns from selected file")
+
+        try:
+            # Get the file path from table_file (table mode) or first file from files array
+            file_path = None
+            if hasattr(self.config, "table_file") and self.config.table_file:
+                file_path = self.config.table_file
+            elif self.config.files and len(self.config.files) > 0:
+                file_path = self.config.files[0]
+
+            if not file_path:
+                raise UserException("No file selected. Please select a file first.")
+
+            self._client.connect()
+
+            try:
+                # Download the first few bytes to read the header
+                import io
+
+                buffer = io.BytesIO()
+
+                # Try to download just the first 8KB which should contain the header
+                try:
+                    self._client.download_file(file_path, buffer, max_bytes=8192)
+                except Exception:
+                    # If max_bytes is not supported, download the whole file
+                    self._client.download_file(file_path, buffer)
+
+                buffer.seek(0)
+
+                # Read the first line as CSV header
+                import csv
+
+                content = buffer.read().decode("utf-8")
+                reader = csv.reader(io.StringIO(content))
+                header = next(reader)
+
+                return [SelectElement(col) for col in header]
+
+            finally:
+                self._client.disconnect()
+
+        except Exception as e:
+            error_msg = f"Failed to load CSV columns: {str(e)}"
+            logging.error(error_msg)
+            raise UserException(error_msg)
+
     def _get_files_to_extract(self, params: Configuration) -> list[FileInfo]:
         matcher = FileMatcher(self._client)
+
+        # In table mode, use table_file or fallback to files[0]
+        if params.mode == Mode.table:
+            file_path = params.table_file or (params.files[0] if params.files else None)
+            if not file_path:
+                raise UserException("No file specified for table mode")
+            return matcher.match_multiple_patterns([file_path])
+
         return matcher.match_multiple_patterns(params.files)
 
     def _extract_files(self, files: list[FileInfo], params: Configuration) -> list[str]:
