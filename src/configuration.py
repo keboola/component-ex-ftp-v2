@@ -2,7 +2,7 @@ import logging
 from enum import Enum
 
 from keboola.component.exceptions import UserException
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, computed_field
 
 
 class Protocol(str, Enum):
@@ -10,6 +10,47 @@ class Protocol(str, Enum):
     EX_FTPS = "ex-ftps"
     IM_FTPS = "im-ftps"
     SFTP = "sftp"
+
+
+class Mode(str, Enum):
+    file = "file"
+    table = "table"
+
+
+class LoadType(str, Enum):
+    full_load = "full_load"
+    incremental_load = "incremental_load"
+
+
+class DataSelectionMode(str, Enum):
+    all_data = "all_data"
+    selected_columns = "selected_columns"
+
+
+class Source(BaseModel):
+    namespace: str = ""
+    table_name: str = ""
+    snapshot_id: int | None = None
+
+
+class DataSelection(BaseModel):
+    mode: DataSelectionMode = Field(default=DataSelectionMode.all_data)
+    columns: list[str] = Field(default_factory=list)
+
+
+class Destination(BaseModel):
+    preserve_insertion_order: bool = True
+    parquet_output: bool = False
+    file_name: str = ""
+    table_name: str = ""
+    load_type: LoadType = Field(default=LoadType.incremental_load)
+    primary_key: list[str] = Field(default_factory=list)
+    columns: list[str] = Field(default_factory=list)
+
+    @computed_field
+    @property
+    def incremental(self) -> bool:
+        return self.load_type == LoadType.incremental_load
 
 
 class SSH(BaseModel):
@@ -51,12 +92,15 @@ class Connection(BaseModel):
 
 class Configuration(BaseModel):
     connection: Connection
+    mode: Mode = Field(default=Mode.file)
     files: list[str] = Field(default_factory=list)
     include_path_in_filename: bool = False
     append_timestamp: bool = False
     incremental_mode: bool = False
     tags: list[str] = Field(default_factory=list)
     debug: bool = False
+    has_header: bool = True
+    destination: Destination = Field(default_factory=Destination)
 
     def __init__(self, **data):
         try:
@@ -67,3 +111,16 @@ class Configuration(BaseModel):
 
         if self.debug:
             logging.debug("Component will run in Debug mode")
+
+        # Validate table mode requirements
+        if self.mode == Mode.table:
+            if not self.files or len(self.files) != 1:
+                raise UserException("Table mode requires exactly one file path")
+
+            # Check for wildcards in the file path
+            if any(char in self.files[0] for char in ["*", "?"]):
+                raise UserException("Wildcards are not allowed in table mode")
+
+            # Validate columns requirement when has_header is False
+            if not self.has_header and not self.destination.columns:
+                raise UserException("When has_header is false, columns must be defined")
