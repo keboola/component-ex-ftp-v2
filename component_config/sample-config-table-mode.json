@@ -20,15 +20,17 @@
       "connection_timeout": 30,
       "max_retries": 2
     },
-    "mode": "file",
+    "mode": "table",
     "files": [
-      "/data/*.csv",
-      "/logs/**/*.log"
+      "/data/sales.csv"
     ],
-    "include_path_in_filename": false,
-    "append_timestamp": false,
-    "incremental_mode": false,
-    "tags": ["ftp-extract"],
+    "has_header": false,
+    "destination": {
+      "table_name": "sales_data",
+      "load_type": "incremental_load",
+      "primary_key": ["id"],
+      "columns": ["id", "date", "product", "quantity", "price"]
+    },
     "debug": false
   },
   "image_parameters": {},

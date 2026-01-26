@@ -6,10 +6,27 @@
     "files"
   ],
   "properties": {
+    "mode": {
+      "enum": [
+        "file",
+        "table"
+      ],
+      "options": {
+        "enum_titles": [
+          "File Mode",
+          "Table Mode"
+        ]
+      },
+      "type": "string",
+      "title": "Mode",
+      "description": "File Mode: Extract files to data/out/files. Table Mode: Extract single file to data/out/tables with manifest.",
+      "default": "file",
+      "propertyOrder": 5
+    },
     "files": {
       "type": "array",
       "title": "File Selection",
-      "description": "Select files from the server or enter file paths/patterns manually. Supports wildcards (e.g., /data/*.csv, /logs/**/*.txt for recursive)",
+      "description": "Select files from the server or enter file paths/patterns manually. In File Mode, wildcards are supported (e.g., /data/*.csv, /logs/**/*.txt). In Table Mode, specify exactly one file path without wildcards.",
       "items": {
         "enum": [],
         "type": "string",
@@ -34,7 +51,12 @@
       "format": "checkbox",
       "default": false,
       "description": "Controls output filename format. If disabled (default), extracts only the filename (e.g., some-folder/file.txt -> file.txt). If enabled, preserves the path in the filename with underscores (e.g., some-folder/file.txt -> some-folder_file.txt). All files are always saved to the root of out/files/ directory.",
-      "propertyOrder": 50
+      "propertyOrder": 50,
+      "options": {
+        "dependencies": {
+          "mode": "file"
+        }
+      }
     },
     "append_timestamp": {
       "type": "boolean",
@@ -42,7 +64,12 @@
       "format": "checkbox",
       "default": false,
       "description": "If enabled, adds extraction timestamp to filename (e.g., file_20240108123456.csv)",
-      "propertyOrder": 60
+      "propertyOrder": 60,
+      "options": {
+        "dependencies": {
+          "mode": "file"
+        }
+      }
     },
     "incremental_mode": {
       "type": "boolean",
@@ -50,7 +77,12 @@
       "format": "checkbox",
       "default": false,
       "description": "If enabled, only extracts files that are new or modified since the last extraction",
-      "propertyOrder": 70
+      "propertyOrder": 70,
+      "options": {
+        "dependencies": {
+          "mode": "file"
+        }
+      }
     },
     "tags": {
       "type": "array",
@@ -59,7 +91,78 @@
       "items": {
         "type": "string"
       },
-      "propertyOrder": 80
+      "propertyOrder": 80,
+      "options": {
+        "dependencies": {
+          "mode": "file"
+        }
+      }
+    },
+    "has_header": {
+      "type": "boolean",
+      "title": "Has Header",
+      "format": "checkbox",
+      "default": true,
+      "description": "If true, the first row contains column names. If false, you must define column names below.",
+      "propertyOrder": 85,
+      "options": {
+        "dependencies": {
+          "mode": "table"
+        }
+      }
+    },
+    "destination": {
+      "type": "object",
+      "title": "Table Destination",
+      "description": "Configuration for table output",
+      "propertyOrder": 87,
+      "options": {
+        "dependencies": {
+          "mode": "table"
+        }
+      },
+      "properties": {
+        "table_name": {
+          "type": "string",
+          "title": "Table Name",
+          "description": "Name of the output table (optional, defaults to filename without extension)",
+          "propertyOrder": 10
+        },
+        "load_type": {
+          "enum": [
+            "full_load",
+            "incremental_load"
+          ],
+          "options": {
+            "enum_titles": [
+              "Full Load",
+              "Incremental Load"
+            ]
+          },
+          "type": "string",
+          "title": "Load Type",
+          "default": "incremental_load",
+          "propertyOrder": 20
+        },
+        "primary_key": {
+          "type": "array",
+          "title": "Primary Key",
+          "description": "List of column names that form the primary key",
+          "items": {
+            "type": "string"
+          },
+          "propertyOrder": 30
+        },
+        "columns": {
+          "type": "array",
+          "title": "Column Names",
+          "description": "Required when Has Header is false. Define column names in order.",
+          "items": {
+            "type": "string"
+          },
+          "propertyOrder": 40
+        }
+      }
     },
     "debug": {
       "type": "boolean",
