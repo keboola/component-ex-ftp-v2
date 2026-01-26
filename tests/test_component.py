@@ -4,8 +4,10 @@ import unittest
 
 import mock
 from freezegun import freeze_time
+from keboola.component.exceptions import UserException
 
 from component import Component
+from configuration import Configuration, Mode
 
 
 class TestComponent(unittest.TestCase):
@@ -50,6 +52,171 @@ class TestComponent(unittest.TestCase):
                 self.assertIn("/days.csv", file_paths)
                 self.assertIn("/sliced/a.csv", file_paths)
                 self.assertIn("/sliced/b.csv", file_paths)
+
+    def test_table_mode_validation_single_file_required(self):
+        """Test that table mode requires exactly one file path"""
+        config = {
+            "connection": {
+                "protocol": "ftp",
+                "hostname": "ftp",
+                "port": 21,
+                "user": "testuser",
+                "#pass": "testpass",
+            },
+            "mode": "table",
+            "files": ["file1.csv", "file2.csv"],  # Multiple files not allowed
+            "destination": {"table_name": "test_table"},
+        }
+
+        with self.assertRaises(UserException) as context:
+            Configuration(**config)
+        self.assertIn("exactly one file path", str(context.exception))
+
+    def test_table_mode_validation_no_wildcards(self):
+        """Test that table mode does not allow wildcards"""
+        config = {
+            "connection": {
+                "protocol": "ftp",
+                "hostname": "ftp",
+                "port": 21,
+                "user": "testuser",
+                "#pass": "testpass",
+            },
+            "mode": "table",
+            "files": ["*.csv"],  # Wildcards not allowed
+            "destination": {"table_name": "test_table"},
+        }
+
+        with self.assertRaises(UserException) as context:
+            Configuration(**config)
+        self.assertIn("Wildcards are not allowed", str(context.exception))
+
+    def test_table_mode_optional_table_name(self):
+        """Test that table mode works without table_name (uses filename as fallback)"""
+        config = {
+            "connection": {
+                "protocol": "ftp",
+                "hostname": "ftp",
+                "port": 21,
+                "user": "testuser",
+                "#pass": "testpass",
+            },
+            "mode": "table",
+            "files": ["data/books.csv"],
+            "destination": {},  # No table_name specified, will use filename
+        }
+
+        cfg = Configuration(**config)
+        self.assertEqual(cfg.mode, Mode.table)
+        self.assertEqual(cfg.destination.table_name, "")  # Empty, will be set during extraction
+
+    def test_file_mode_default(self):
+        """Test that file mode is the default"""
+        config = {
+            "connection": {
+                "protocol": "ftp",
+                "hostname": "ftp",
+                "port": 21,
+                "user": "testuser",
+                "#pass": "testpass",
+            },
+            "files": ["*.csv"],
+        }
+
+        cfg = Configuration(**config)
+        self.assertEqual(cfg.mode, Mode.file)
+
+    def test_table_mode_config_valid(self):
+        """Test valid table mode configuration"""
+        config = {
+            "connection": {
+                "protocol": "ftp",
+                "hostname": "ftp",
+                "port": 21,
+                "user": "testuser",
+                "#pass": "testpass",
+            },
+            "mode": "table",
+            "files": ["data/books.csv"],
+            "destination": {
+                "table_name": "books",
+                "load_type": "incremental_load",
+                "primary_key": ["id"],
+            },
+        }
+
+        cfg = Configuration(**config)
+        self.assertEqual(cfg.mode, Mode.table)
+        self.assertEqual(cfg.destination.table_name, "books")
+        self.assertEqual(cfg.destination.primary_key, ["id"])
+        self.assertTrue(cfg.destination.incremental)
+
+    def test_table_mode_has_header_default_true(self):
+        """Test that has_header defaults to True"""
+        config = {
+            "connection": {
+                "protocol": "ftp",
+                "hostname": "ftp",
+                "port": 21,
+                "user": "testuser",
+                "#pass": "testpass",
+            },
+            "mode": "table",
+            "files": ["data/books.csv"],
+            "destination": {
+                "table_name": "books",
+            },
+        }
+
+        cfg = Configuration(**config)
+        self.assertTrue(cfg.has_header)
+
+    def test_table_mode_has_header_false_requires_columns(self):
+        """Test that has_header=False requires columns to be defined"""
+        config = {
+            "connection": {
+                "protocol": "ftp",
+                "hostname": "ftp",
+                "port": 21,
+                "user": "testuser",
+                "#pass": "testpass",
+            },
+            "mode": "table",
+            "files": ["data/books.csv"],
+            "has_header": False,
+            "destination": {
+                "table_name": "books",
+                # No columns defined - should fail
+            },
+        }
+
+        with self.assertRaises(UserException) as context:
+            Configuration(**config)
+        self.assertIn("columns must be defined", str(context.exception))
+
+    def test_table_mode_has_header_false_with_columns(self):
+        """Test valid configuration with has_header=False and columns defined"""
+        config = {
+            "connection": {
+                "protocol": "ftp",
+                "hostname": "ftp",
+                "port": 21,
+                "user": "testuser",
+                "#pass": "testpass",
+            },
+            "mode": "table",
+            "files": ["data/books.csv"],
+            "has_header": False,
+            "destination": {
+                "table_name": "books",
+                "columns": ["col1", "col2", "col3"],
+                "primary_key": ["col1"],
+            },
+        }
+
+        cfg = Configuration(**config)
+        self.assertFalse(cfg.has_header)
+        self.assertEqual(cfg.destination.columns, ["col1", "col2", "col3"])
 
 
 if __name__ == "__main__":

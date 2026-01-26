@@ -1,0 +1,31 @@
+{
+  "parameters": {
+    "connection": {
+      "protocol": "ftp",
+      "hostname": "ftp",
+      "port": 21,
+      "user": "testuser",
+      "#pass": "testpass",
+      "passive_mode": true,
+      "connection_timeout": 30,
+      "max_retries": 2
+    },
+    "mode": "table",
+    "files": [
+      "days.csv"
+    ],
+    "has_header": false,
+    "destination": {
+      "table_name": "days",
+      "load_type": "incremental_load",
+      "primary_key": ["id"],
+      "columns": ["id", "day"]
+    },
+    "debug": true
+  },
+  "image_parameters": {},
+  "action": "run",
+  "shared_code_row_ids": [],
+  "storage": {},
+  "authorization": {}
+}
