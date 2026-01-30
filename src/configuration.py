@@ -42,6 +42,7 @@ class Destination(BaseModel):
     preserve_insertion_order: bool = True
     parquet_output: bool = False
     file_name: str = ""
+    output_bucket: str = ""
     table_name: str = ""
     load_type: LoadType = Field(default=LoadType.incremental_load)
     primary_key: list[str] = Field(default_factory=list)

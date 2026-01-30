@@ -8,6 +8,7 @@ dependencies = [
     "datadirtest",
     "freezegun>=1.5.1",
     "ftputil==5.1.0",
+    "kbcstorage>=0.9.5",
     "keboola-component>=1.6.10",
     "keboola-http-client>=1.0.1",
     "keboola-utils>=1.1.0",
