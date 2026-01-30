@@ -123,25 +123,6 @@ class Component(ComponentBase):
             logging.error(error_msg)
             raise UserException(error_msg)
 
-    @sync_action("list_all_files")
-    def list_all_files(self):
-        logging.info("Listing all files from server")
-
-        try:
-            self._client.connect()
-
-            try:
-                files = self._client.list_files("/", recursive=True)
-                return [SelectElement(file.path) for file in files]
-
-            finally:
-                self._client.disconnect()
-
-        except Exception as e:
-            error_msg = f"Failed to list all files: {str(e)}"
-            logging.error(error_msg)
-            raise UserException(error_msg)
-
     @sync_action("load_csv_columns")
     def load_csv_columns(self):
         logging.info("Loading CSV columns from selected file")

@@ -18,8 +18,8 @@ class TestComponent(unittest.TestCase):
             comp = Component()
             comp.run()
 
-    def test_list_all_files_sync_action(self):
-        """Test list_all_files sync action against FTP server in docker-compose"""
+    def test_list_files_sync_action(self):
+        """Test list_files sync action against FTP server in docker-compose"""
         with tempfile.TemporaryDirectory() as tmpdir:
             config = {
                 "connection": {
@@ -43,7 +43,7 @@ class TestComponent(unittest.TestCase):
 
             with mock.patch.dict(os.environ, {"KBC_DATADIR": tmpdir}):
                 comp = Component()
-                result = comp.list_all_files()
+                result = comp.list_files()
 
                 self.assertIsInstance(result, list)
                 self.assertGreater(len(result), 0)
