@@ -144,21 +144,6 @@
         }
       },
       "properties": {
-        "output_bucket": {
-          "type": "string",
-          "title": "Output Bucket",
-          "description": "Select the output bucket for the table",
-          "enum": [],
-          "format": "select",
-          "propertyOrder": 5,
-          "options": {
-            "async": {
-              "label": "Load buckets",
-              "action": "list_buckets",
-              "autoload": []
-            }
-          }
-        },
         "table_name": {
           "type": "string",
           "title": "Table Name",

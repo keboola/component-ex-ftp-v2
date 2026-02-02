@@ -4,7 +4,6 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from kbcstorage.client import Client
 from keboola.component.base import ComponentBase, sync_action
 from keboola.component.exceptions import UserException
 from keboola.component.sync_actions import SelectElement
@@ -83,6 +82,95 @@ class Component(ComponentBase):
         finally:
             if self._client:
                 self._client.disconnect()
+
+    @sync_action("testConnection")
+    def test_connection(self):
+        protocol = self.config.connection.protocol.value.upper()
+        hostname = self.config.connection.hostname
+        logging.info(f"Testing connection to {protocol} server: {hostname}")
+
+        try:
+            self._client.connect()
+            self._client.disconnect()
+            logging.info("Connection test successful")
+            return {"status": "success", "message": "Connection successful"}
+        except Exception as e:
+            error_msg = f"Connection test failed: {str(e)}"
+            logging.error(error_msg)
+            raise UserException(error_msg)
+
+    @sync_action("list_files")
+    def list_files(self):
+        logging.info("Listing files for selection")
+
+        try:
+            self._client.connect()
+
+            try:
+                if self.config.connection.protocol.value == "sftp":
+                    list_path = "."
+                else:
+                    list_path = "/"
+
+                files = self._client.list_files(list_path, recursive=True)
+                return [SelectElement(file.path) for file in files]
+
+            finally:
+                self._client.disconnect()
+
+        except Exception as e:
+            error_msg = f"Failed to list files: {str(e)}"
+            logging.error(error_msg)
+            raise UserException(error_msg)
+
+    @sync_action("load_csv_columns")
+    def load_csv_columns(self):
+        logging.info("Loading CSV columns from selected file")
+
+        try:
+            # Get the file path from table_file (table mode) or first file from files array
+            file_path = None
+            if hasattr(self.config, "table_file") and self.config.table_file:
+                file_path = self.config.table_file
+            elif self.config.files and len(self.config.files) > 0:
+                file_path = self.config.files[0]
+
+            if not file_path:
+                raise UserException("No file selected. Please select a file first.")
+
+            self._client.connect()
+
+            try:
+                # Download the first few bytes to read the header
+                import io
+
+                buffer = io.BytesIO()
+
+                # Try to download just the first 8KB which should contain the header
+                try:
+                    self._client.download_file(file_path, buffer, max_bytes=8192)
+                except Exception:
+                    # If max_bytes is not supported, download the whole file
+                    self._client.download_file(file_path, buffer)
+
+                buffer.seek(0)
+
+                # Read the first line as CSV header
+                import csv
+
+                content = buffer.read().decode("utf-8")
+                reader = csv.reader(io.StringIO(content))
+                header = next(reader)
+
+                return [SelectElement(col) for col in header]
+
+            finally:
+                self._client.disconnect()
+
+        except Exception as e:
+            error_msg = f"Failed to load CSV columns: {str(e)}"
+            logging.error(error_msg)
+            raise UserException(error_msg)
 
     def _get_files_to_extract(self, params: Configuration) -> list[FileInfo]:
         matcher = FileMatcher(self._client)
@@ -188,12 +276,9 @@ class Component(ComponentBase):
             # Use manually defined columns
             columns = params.destination.columns
 
-        dest = f"{params.destination.output_bucket}.{table_name}" if params.destination.output_bucket else ""
-
-        # Create table definition
+        # Create table definition without has_header parameter first
         output_table = self.create_out_table_definition(
             name=table_name,
-            destination=dest,
             primary_key=params.destination.primary_key,
             incremental=params.destination.incremental,
             columns=columns,
@@ -201,102 +286,6 @@ class Component(ComponentBase):
         )
 
         self.write_manifest(output_table)
-
-    @sync_action("testConnection")
-    def test_connection(self):
-        protocol = self.config.connection.protocol.value.upper()
-        hostname = self.config.connection.hostname
-        logging.info(f"Testing connection to {protocol} server: {hostname}")
-
-        try:
-            self._client.connect()
-            self._client.disconnect()
-            logging.info("Connection test successful")
-            return {"status": "success", "message": "Connection successful"}
-        except Exception as e:
-            error_msg = f"Connection test failed: {str(e)}"
-            logging.error(error_msg)
-            raise UserException(error_msg)
-
-    @sync_action("list_files")
-    def list_files(self):
-        logging.info("Listing files for selection")
-
-        try:
-            self._client.connect()
-
-            try:
-                if self.config.connection.protocol.value == "sftp":
-                    list_path = "."
-                else:
-                    list_path = "/"
-
-                files = self._client.list_files(list_path, recursive=True)
-                return [SelectElement(file.path) for file in files]
-
-            finally:
-                self._client.disconnect()
-
-        except Exception as e:
-            error_msg = f"Failed to list files: {str(e)}"
-            logging.error(error_msg)
-            raise UserException(error_msg)
-
-    @sync_action("load_csv_columns")
-    def load_csv_columns(self):
-        logging.info("Loading CSV columns from selected file")
-
-        try:
-            # Get the file path from table_file (table mode) or first file from files array
-            file_path = None
-            if hasattr(self.config, "table_file") and self.config.table_file:
-                file_path = self.config.table_file
-            elif self.config.files and len(self.config.files) > 0:
-                file_path = self.config.files[0]
-
-            if not file_path:
-                raise UserException("No file selected. Please select a file first.")
-
-            self._client.connect()
-
-            try:
-                # Download the first few bytes to read the header
-                import io
-
-                buffer = io.BytesIO()
-
-                # Try to download just the first 8KB which should contain the header
-                try:
-                    self._client.download_file(file_path, buffer)
-                except Exception:
-                    # If max_bytes is not supported, download the whole file
-                    self._client.download_file(file_path, buffer)
-
-                buffer.seek(0)
-
-                # Read the first line as CSV header
-                import csv
-
-                content = buffer.read().decode("utf-8")
-                reader = csv.reader(io.StringIO(content))
-                header = next(reader)
-
-                return [SelectElement(col) for col in header]
-
-            finally:
-                self._client.disconnect()
-
-        except Exception as e:
-            error_msg = f"Failed to load CSV columns: {str(e)}"
-            logging.error(error_msg)
-            raise UserException(error_msg)
-
-    @sync_action("list_buckets")
-    def list_buckets(self) -> list[SelectElement]:
-        sapi_client = Client(self.environment_variables.url, self.environment_variables.token)
-
-        buckets = sapi_client.buckets.list()
-        return [SelectElement(value=b["id"], label=f"{b['id']} ({b['name']})") for b in buckets]
 
 
 if __name__ == "__main__":
