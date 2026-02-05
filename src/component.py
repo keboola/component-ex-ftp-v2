@@ -1,5 +1,6 @@
+import csv
+import io
 import logging
-import os
 from datetime import datetime
 from pathlib import Path
 
@@ -7,7 +8,7 @@ from keboola.component.base import ComponentBase, sync_action
 from keboola.component.exceptions import UserException
 from keboola.component.sync_actions import SelectElement
 
-from configuration import Configuration
+from configuration import Configuration, Mode
 from file_matcher import FileMatcher
 from ftp_client import FileInfo, create_client
 
@@ -61,13 +62,22 @@ class Component(ComponentBase):
 
             logging.info(f"Found {len(files_to_extract)} file(s) to extract")
 
-            extracted_files = self._extract_files(files_to_extract, self.config)
-            self._write_manifests(extracted_files, self.config.tags)
+            if self.config.mode == Mode.FILE:
+                extracted_files = self._extract_files(files_to_extract, self.config)
+                self._write_file_manifests(extracted_files, self.config.tags)
+                files_count = len(extracted_files)
+            else:  # table mode
+                extracted_table = self._extract_table(files_to_extract[0], self.config)
+                self._write_table_manifest(extracted_table, self.config)
+                files_count = 1
 
-            new_state = {"last_extraction_time": datetime.now().timestamp(), "files_extracted": len(extracted_files)}
+            new_state = {"last_extraction_time": datetime.now().timestamp(), "files_extracted": files_count}
             self.write_state_file(new_state)
 
-            logging.info(f"Successfully extracted {len(extracted_files)} file(s)")
+            if self.config.mode == Mode.FILE:
+                logging.info(f"Successfully extracted {files_count} file(s)")
+            else:
+                logging.info(f"Successfully extracted table: {extracted_table}")
 
         finally:
             if self._client:
@@ -113,27 +123,61 @@ class Component(ComponentBase):
             logging.error(error_msg)
             raise UserException(error_msg)
 
-    @sync_action("list_all_files")
-    def list_all_files(self):
-        logging.info("Listing all files from server")
+    @sync_action("load_csv_columns")
+    def load_csv_columns(self):
+        logging.info("Loading CSV columns from selected file")
 
         try:
+            # Get the file path from table_file (table mode) or first file from files array
+            file_path = None
+            if hasattr(self.config, "table_file") and self.config.table_file:
+                file_path = self.config.table_file
+            elif self.config.files and len(self.config.files) > 0:
+                file_path = self.config.files[0]
+
+            if not file_path:
+                raise UserException("No file selected. Please select a file first.")
+
             self._client.connect()
 
             try:
-                files = self._client.list_files("/", recursive=True)
-                return [SelectElement(file.path) for file in files]
+                # Download the first few bytes to read the header
+                buffer = io.BytesIO()
+
+                # Try to download just the first 8KB which should contain the header
+                try:
+                    self._client.download_file(file_path, buffer, max_bytes=8192)
+                except Exception:
+                    # If max_bytes is not supported, download the whole file
+                    self._client.download_file(file_path, buffer)
+
+                buffer.seek(0)
+
+                # Read the first line as CSV header
+                content = buffer.read().decode("utf-8")
+                reader = csv.reader(io.StringIO(content))
+                header = next(reader)
+
+                return [SelectElement(col) for col in header]
 
             finally:
                 self._client.disconnect()
 
         except Exception as e:
-            error_msg = f"Failed to list all files: {str(e)}"
+            error_msg = f"Failed to load CSV columns: {str(e)}"
             logging.error(error_msg)
             raise UserException(error_msg)
 
     def _get_files_to_extract(self, params: Configuration) -> list[FileInfo]:
         matcher = FileMatcher(self._client)
+
+        # In table mode, use table_file or fallback to files[0]
+        if params.mode == Mode.TABLE:
+            file_path = params.table_file or (params.files[0] if params.files else None)
+            if not file_path:
+                raise UserException("No file specified for table mode")
+            return matcher.match_multiple_patterns([file_path])
+
         return matcher.match_multiple_patterns(params.files)
 
     def _extract_files(self, files: list[FileInfo], params: Configuration) -> list[str]:
@@ -167,21 +211,77 @@ class Component(ComponentBase):
         if include_path:
             filename = file_info.path.replace("/", "_").replace("\\", "_").lstrip("_")
         else:
-            filename = os.path.basename(file_info.path)
+            filename = Path(file_info.path).name
 
         if append_timestamp:
-            name_parts = os.path.splitext(filename)
+            path = Path(filename)
             timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-            filename = f"{name_parts[0]}_{timestamp}{name_parts[1]}"
+            filename = f"{path.stem}_{timestamp}{path.suffix}"
 
         return filename
 
-    def _write_manifests(self, filenames: list[str], tags: list[str]) -> None:
+    def _extract_table(self, file_info: FileInfo, params: Configuration) -> str:
+        """Extract a single file to the tables directory."""
+        output_dir = Path(self.data_folder_path) / "out" / "tables"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Use table_name from destination, fallback to original filename
+        table_name = params.destination.table_name or Path(file_info.path).stem
+        # Ensure .csv extension
+        if not table_name.endswith(".csv"):
+            table_name = f"{table_name}.csv"
+
+        output_path = output_dir / table_name
+
+        logging.info(f"Downloading {file_info.path} to table {table_name}")
+        try:
+            with open(output_path, "wb") as f:
+                self._client.download_file(file_info.path, f)
+            return table_name
+        except Exception as e:
+            logging.error(f"Failed to extract {file_info.path}: {str(e)}")
+            raise UserException(f"Failed to extract table: {str(e)}")
+
+    def _write_file_manifests(self, filenames: list[str], tags: list[str]) -> None:
+        """Write manifests for files in file mode."""
         for filename in filenames:
             output_file = self.create_out_file_definition(
                 name=filename, tags=tags if tags else [], is_public=False, is_permanent=True
             )
             self.write_manifest(output_file)
+
+    def _get_csv_columns(self, table_path: Path) -> list[str]:
+        """Read column names from CSV file header."""
+        try:
+            with open(table_path, "r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                header = next(reader)
+                return header
+        except Exception as e:
+            logging.error(f"Failed to read CSV header from {table_path}: {str(e)}")
+            raise UserException(f"Failed to read CSV header: {str(e)}")
+
+    def _write_table_manifest(self, table_name: str, params: Configuration) -> None:
+        """Write manifest for table in table mode."""
+        # Determine columns for schema
+        if params.has_header:
+            # Read columns from CSV header
+            table_path = Path(self.data_folder_path) / "out" / "tables" / table_name
+            columns = self._get_csv_columns(table_path)
+        else:
+            # Use manually defined columns
+            columns = params.destination.columns
+
+        # Create table definition without has_header parameter first
+        output_table = self.create_out_table_definition(
+            name=table_name,
+            primary_key=params.destination.primary_key,
+            incremental=params.destination.incremental,
+            columns=columns,
+            has_header=params.has_header,
+        )
+
+        self.write_manifest(output_table)
 
 
 if __name__ == "__main__":

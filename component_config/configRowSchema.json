@@ -6,10 +6,27 @@
     "files"
   ],
   "properties": {
+    "mode": {
+      "enum": [
+        "file",
+        "table"
+      ],
+      "options": {
+        "enum_titles": [
+          "File Mode",
+          "Table Mode"
+        ]
+      },
+      "type": "string",
+      "title": "Mode",
+      "description": "File Mode: Extract files to data/out/files. Table Mode: Extract single file to data/out/tables with manifest.",
+      "default": "file",
+      "propertyOrder": 5
+    },
     "files": {
       "type": "array",
       "title": "File Selection",
-      "description": "Select files from the server or enter file paths/patterns manually. Supports wildcards (e.g., /data/*.csv, /logs/**/*.txt for recursive)",
+      "description": "Select files from the server or enter file paths/patterns manually. Wildcards are supported (e.g., /data/*.csv, /logs/**/*.txt for recursive).",
       "items": {
         "enum": [],
         "type": "string",
@@ -25,7 +42,29 @@
           "action": "list_files",
           "autoload": []
         },
-        "creatable": true
+        "creatable": true,
+        "dependencies": {
+          "mode": "file"
+        }
+      }
+    },
+    "table_file": {
+      "type": "string",
+      "title": "Table File",
+      "description": "Select a single file from the server or enter file path manually. Wildcards are not allowed.",
+      "enum": [],
+      "format": "select",
+      "propertyOrder": 15,
+      "options": {
+        "async": {
+          "label": "Load files",
+          "action": "list_files",
+          "autoload": []
+        },
+        "creatable": true,
+        "dependencies": {
+          "mode": "table"
+        }
       }
     },
     "include_path_in_filename": {
@@ -34,7 +73,12 @@
       "format": "checkbox",
       "default": false,
       "description": "Controls output filename format. If disabled (default), extracts only the filename (e.g., some-folder/file.txt -> file.txt). If enabled, preserves the path in the filename with underscores (e.g., some-folder/file.txt -> some-folder_file.txt). All files are always saved to the root of out/files/ directory.",
-      "propertyOrder": 50
+      "propertyOrder": 50,
+      "options": {
+        "dependencies": {
+          "mode": "file"
+        }
+      }
     },
     "append_timestamp": {
       "type": "boolean",
@@ -42,7 +86,12 @@
       "format": "checkbox",
       "default": false,
       "description": "If enabled, adds extraction timestamp to filename (e.g., file_20240108123456.csv)",
-      "propertyOrder": 60
+      "propertyOrder": 60,
+      "options": {
+        "dependencies": {
+          "mode": "file"
+        }
+      }
     },
     "incremental_mode": {
       "type": "boolean",
@@ -50,7 +99,12 @@
       "format": "checkbox",
       "default": false,
       "description": "If enabled, only extracts files that are new or modified since the last extraction",
-      "propertyOrder": 70
+      "propertyOrder": 70,
+      "options": {
+        "dependencies": {
+          "mode": "file"
+        }
+      }
     },
     "tags": {
       "type": "array",
@@ -59,7 +113,112 @@
       "items": {
         "type": "string"
       },
-      "propertyOrder": 80
+      "propertyOrder": 80,
+      "options": {
+        "dependencies": {
+          "mode": "file"
+        }
+      }
+    },
+    "has_header": {
+      "type": "boolean",
+      "title": "Has Header",
+      "format": "checkbox",
+      "default": true,
+      "description": "If true, the first row contains column names. If false, you must define column names below.",
+      "propertyOrder": 85,
+      "options": {
+        "dependencies": {
+          "mode": "table"
+        }
+      }
+    },
+    "destination": {
+      "type": "object",
+      "title": "Table Destination",
+      "description": "Configuration for table output",
+      "propertyOrder": 87,
+      "options": {
+        "dependencies": {
+          "mode": "table"
+        }
+      },
+      "properties": {
+        "table_name": {
+          "type": "string",
+          "title": "Table Name",
+          "description": "Name of the output table (optional, defaults to filename without extension)",
+          "propertyOrder": 10
+        },
+        "load_type": {
+          "enum": [
+            "full_load",
+            "incremental_load"
+          ],
+          "options": {
+            "enum_titles": [
+              "Full Load",
+              "Incremental Load"
+            ]
+          },
+          "type": "string",
+          "title": "Load Type",
+          "default": "incremental_load",
+          "propertyOrder": 20
+        },
+        "primary_key": {
+          "type": "array",
+          "title": "Primary Key",
+          "description": "List of column names that form the primary key. Load from CSV or enter manually.",
+          "items": {
+            "enum": [],
+            "type": "string",
+            "format": "select"
+          },
+          "format": "select",
+          "uniqueItems": true,
+          "propertyOrder": 30,
+          "options": {
+            "tags": true,
+            "async": {
+              "label": "Load columns from CSV",
+              "action": "load_csv_columns"
+            },
+            "creatable": true
+          }
+        },
+        "helper_has_header": {
+          "type": "string",
+          "description": "Helper element to watch has_header for columns dependency",
+          "template": "{{val}}",
+          "watch": {
+            "val": "has_header"
+          },
+          "options": {
+            "hidden": true
+          }
+        },
+        "columns": {
+          "type": "array",
+          "title": "Column Names",
+          "description": "Define column names in order (e.g., col1, col2, col3).",
+          "items": {
+            "enum": [],
+            "type": "string",
+            "format": "select"
+          },
+          "format": "select",
+          "uniqueItems": true,
+          "propertyOrder": 40,
+          "options": {
+            "tags": true,
+            "creatable": true,
+            "dependencies": {
+              "helper_has_header": "false"
+            }
+          }
+        }
+      }
     },
     "debug": {
       "type": "boolean",
