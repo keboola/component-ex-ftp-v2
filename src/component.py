@@ -1,6 +1,6 @@
 import csv
+import io
 import logging
-import os
 from datetime import datetime
 from pathlib import Path
 
@@ -142,8 +142,6 @@ class Component(ComponentBase):
 
             try:
                 # Download the first few bytes to read the header
-                import io
-
                 buffer = io.BytesIO()
 
                 # Try to download just the first 8KB which should contain the header
@@ -156,8 +154,6 @@ class Component(ComponentBase):
                 buffer.seek(0)
 
                 # Read the first line as CSV header
-                import csv
-
                 content = buffer.read().decode("utf-8")
                 reader = csv.reader(io.StringIO(content))
                 header = next(reader)
@@ -215,12 +211,12 @@ class Component(ComponentBase):
         if include_path:
             filename = file_info.path.replace("/", "_").replace("\\", "_").lstrip("_")
         else:
-            filename = os.path.basename(file_info.path)
+            filename = Path(file_info.path).name
 
         if append_timestamp:
-            name_parts = os.path.splitext(filename)
+            path = Path(filename)
             timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-            filename = f"{name_parts[0]}_{timestamp}{name_parts[1]}"
+            filename = f"{path.stem}_{timestamp}{path.suffix}"
 
         return filename
 
@@ -230,7 +226,7 @@ class Component(ComponentBase):
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # Use table_name from destination, fallback to original filename
-        table_name = params.destination.table_name or os.path.splitext(os.path.basename(file_info.path))[0]
+        table_name = params.destination.table_name or Path(file_info.path).stem
         # Ensure .csv extension
         if not table_name.endswith(".csv"):
             table_name = f"{table_name}.csv"
