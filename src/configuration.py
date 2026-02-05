@@ -5,24 +5,24 @@ from keboola.component.exceptions import UserException
 from pydantic import BaseModel, Field, ValidationError, field_validator, computed_field
 
 
-class Protocol(str, Enum):
+class Protocol(Enum):
     FTP = "ftp"
     EX_FTPS = "ex-ftps"
     IM_FTPS = "im-ftps"
     SFTP = "sftp"
 
 
-class Mode(str, Enum):
+class Mode(Enum):
     FILE = "file"
     TABLE = "table"
 
 
-class LoadType(str, Enum):
+class LoadType(Enum):
     FULL_LOAD = "full_load"
     INCREMENTAL_LOAD = "incremental_load"
 
 
-class DataSelectionMode(str, Enum):
+class DataSelectionMode(Enum):
     ALL_DATA = "all_data"
     SELECTED_COLUMNS = "selected_columns"
 
