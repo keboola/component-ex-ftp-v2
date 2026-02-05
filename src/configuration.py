@@ -13,18 +13,18 @@ class Protocol(str, Enum):
 
 
 class Mode(str, Enum):
-    file = "file"
-    table = "table"
+    FILE = "file"
+    TABLE = "table"
 
 
 class LoadType(str, Enum):
-    full_load = "full_load"
-    incremental_load = "incremental_load"
+    FULL_LOAD = "full_load"
+    INCREMENTAL_LOAD = "incremental_load"
 
 
 class DataSelectionMode(str, Enum):
-    all_data = "all_data"
-    selected_columns = "selected_columns"
+    ALL_DATA = "all_data"
+    SELECTED_COLUMNS = "selected_columns"
 
 
 class Source(BaseModel):
@@ -34,7 +34,7 @@ class Source(BaseModel):
 
 
 class DataSelection(BaseModel):
-    mode: DataSelectionMode = Field(default=DataSelectionMode.all_data)
+    mode: DataSelectionMode = Field(default=DataSelectionMode.ALL_DATA)
     columns: list[str] = Field(default_factory=list)
 
 
@@ -43,14 +43,14 @@ class Destination(BaseModel):
     parquet_output: bool = False
     file_name: str = ""
     table_name: str = ""
-    load_type: LoadType = Field(default=LoadType.incremental_load)
+    load_type: LoadType = Field(default=LoadType.INCREMENTAL_LOAD)
     primary_key: list[str] = Field(default_factory=list)
     columns: list[str] = Field(default_factory=list)
 
     @computed_field
     @property
     def incremental(self) -> bool:
-        return self.load_type == LoadType.incremental_load
+        return self.load_type == LoadType.INCREMENTAL_LOAD
 
 
 class SSH(BaseModel):
@@ -92,7 +92,7 @@ class Connection(BaseModel):
 
 class Configuration(BaseModel):
     connection: Connection
-    mode: Mode = Field(default=Mode.file)
+    mode: Mode = Field(default=Mode.FILE)
     files: list[str] = Field(default_factory=list)
     table_file: str = ""
     include_path_in_filename: bool = False
@@ -114,7 +114,7 @@ class Configuration(BaseModel):
             logging.debug("Component will run in Debug mode")
 
         # Validate table mode requirements
-        if self.mode == Mode.table:
+        if self.mode == Mode.TABLE:
             # In table mode, use table_file field or fallback to files[0]
             file_path = self.table_file or (self.files[0] if self.files else None)
 

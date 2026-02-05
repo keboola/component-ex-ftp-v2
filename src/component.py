@@ -62,7 +62,7 @@ class Component(ComponentBase):
 
             logging.info(f"Found {len(files_to_extract)} file(s) to extract")
 
-            if self.config.mode == Mode.file:
+            if self.config.mode == Mode.FILE:
                 extracted_files = self._extract_files(files_to_extract, self.config)
                 self._write_file_manifests(extracted_files, self.config.tags)
                 files_count = len(extracted_files)
@@ -74,7 +74,7 @@ class Component(ComponentBase):
             new_state = {"last_extraction_time": datetime.now().timestamp(), "files_extracted": files_count}
             self.write_state_file(new_state)
 
-            if self.config.mode == Mode.file:
+            if self.config.mode == Mode.FILE:
                 logging.info(f"Successfully extracted {files_count} file(s)")
             else:
                 logging.info(f"Successfully extracted table: {extracted_table}")
@@ -172,7 +172,7 @@ class Component(ComponentBase):
         matcher = FileMatcher(self._client)
 
         # In table mode, use table_file or fallback to files[0]
-        if params.mode == Mode.table:
+        if params.mode == Mode.TABLE:
             file_path = params.table_file or (params.files[0] if params.files else None)
             if not file_path:
                 raise UserException("No file specified for table mode")

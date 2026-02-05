@@ -108,7 +108,7 @@ class TestComponent(unittest.TestCase):
         }
 
         cfg = Configuration(**config)
-        self.assertEqual(cfg.mode, Mode.table)
+        self.assertEqual(cfg.mode, Mode.TABLE)
         self.assertEqual(cfg.destination.table_name, "")  # Empty, will be set during extraction
 
     def test_file_mode_default(self):
@@ -125,7 +125,7 @@ class TestComponent(unittest.TestCase):
         }
 
         cfg = Configuration(**config)
-        self.assertEqual(cfg.mode, Mode.file)
+        self.assertEqual(cfg.mode, Mode.FILE)
 
     def test_table_mode_config_valid(self):
         """Test valid table mode configuration with table_file"""
@@ -147,7 +147,7 @@ class TestComponent(unittest.TestCase):
         }
 
         cfg = Configuration(**config)
-        self.assertEqual(cfg.mode, Mode.table)
+        self.assertEqual(cfg.mode, Mode.TABLE)
         self.assertEqual(cfg.table_file, "data/books.csv")
         self.assertEqual(cfg.destination.table_name, "books")
         self.assertEqual(cfg.destination.primary_key, ["id"])
@@ -173,7 +173,7 @@ class TestComponent(unittest.TestCase):
         }
 
         cfg = Configuration(**config)
-        self.assertEqual(cfg.mode, Mode.table)
+        self.assertEqual(cfg.mode, Mode.TABLE)
         # Validation should pass using files[0] as fallback
         self.assertEqual(cfg.files[0], "data/books.csv")
 
