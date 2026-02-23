@@ -36,6 +36,7 @@ class Component(ComponentBase):
         hostname = self.config.connection.hostname
         logging.info(f"Starting extraction from {protocol} server: {hostname}")
 
+        logging.info("Loading state file..")
         previous_state = self.get_state_file() or {}
         last_extraction_time = previous_state.get("last_extraction_time", 0)
 
@@ -49,6 +50,8 @@ class Component(ComponentBase):
 
             if not files_to_extract:
                 logging.warning("No files found matching the selection criteria")
+                if previous_state:
+                    self.write_state_file(previous_state)
                 return
 
             if self.config.incremental_mode and last_extraction_time:
@@ -58,6 +61,7 @@ class Component(ComponentBase):
 
                 if not files_to_extract:
                     logging.info("No new or modified files found")
+                    self.write_state_file(previous_state)
                     return
 
             logging.info(f"Found {len(files_to_extract)} file(s) to extract")
