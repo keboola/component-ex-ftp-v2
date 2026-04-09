@@ -417,6 +417,27 @@ class FTPClient(FTPClientBase):
             # Connect
             self._ftp_host = ftputil.FTPHost(self.hostname, self.user, self.password, session_factory=session_factory)
 
+            # Synchronize time offset between FTP server and client.
+            # Without this, ftputil assumes time_shift=0 (server time == UTC).
+            # If the server is in a different timezone (e.g. CET = UTC+1/+2),
+            # its year-guessing logic can misinterpret recent LIST timestamps
+            # as "in the future" and subtract a year, producing wrong mtimes.
+            try:
+                self._ftp_host.synchronize_times()
+                self.logger.info(
+                    f"Synchronized FTP time shift: {self._ftp_host.time_shift():.0f}s"
+                )
+            except ftputil.error.TimeShiftError:
+                self.logger.warning(
+                    "Could not synchronize FTP server time (read-only access?). "
+                    "Falling back to MDTM for file timestamps."
+                )
+            except ftputil.error.FTPError:
+                self.logger.warning(
+                    "Could not synchronize FTP server time. "
+                    "Falling back to MDTM for file timestamps."
+                )
+
             self.logger.info(f"Successfully connected to {self.protocol.value.upper()} server")
 
         except ftplib.error_perm as e:
