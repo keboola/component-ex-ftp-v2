@@ -7,7 +7,7 @@ import os
 import shutil
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import BinaryIO
 
 import backoff
@@ -382,6 +382,7 @@ class FTPClient(FTPClientBase):
         self.protocol = protocol
         self.passive_mode = passive_mode
         self._ftp_host: ftputil.FTPHost | None = None
+        self._mdtm_supported: bool | None = None
 
     @backoff.on_exception(
         backoff.expo,
@@ -449,6 +450,47 @@ class FTPClient(FTPClientBase):
 
         return files
 
+    def _get_mdtm_mtime(self, remote_path: str) -> datetime | None:
+        """Get file modification time using the MDTM command.
+
+        MDTM returns timestamps in UTC (YYYYMMDDHHMMSS format per RFC 3659),
+        which is more reliable than parsing the LIST response that uses the
+        FTP server's local timezone with no timezone marker.
+
+        Returns:
+            UTC datetime if MDTM is supported, None otherwise.
+        """
+        if self._mdtm_supported is False:
+            return None
+
+        try:
+            # Access the underlying ftplib session to send the MDTM command
+            session = self._ftp_host._session
+            response = session.sendcmd(f"MDTM {remote_path}")
+            # Response format: "213 YYYYMMDDHHMMSS" (possibly with fractional seconds)
+            if response.startswith("213 "):
+                timestamp_str = response[4:].strip()
+                # Parse the UTC timestamp (YYYYMMDDHHMMSS)
+                mtime_utc = datetime.strptime(timestamp_str[:14], "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
+                self._mdtm_supported = True
+                return mtime_utc
+        except Exception:
+            # MDTM not supported by this server, fall back to LIST-based mtime
+            if self._mdtm_supported is None:
+                self.logger.info("MDTM command not supported by server, falling back to LIST-based timestamps")
+                self._mdtm_supported = False
+        return None
+
+    def _get_file_mtime(self, remote_path: str, stat_mtime: float) -> datetime:
+        """Get the best available file modification time.
+
+        Prefers MDTM (accurate UTC) over LIST-based mtime (server-local timezone).
+        """
+        mdtm_time = self._get_mdtm_mtime(remote_path)
+        if mdtm_time is not None:
+            return mdtm_time
+        return datetime.fromtimestamp(stat_mtime)
+
     def _list_files_recursive(self, path: str, files: list[FileInfo], recursive: bool) -> None:
         """Recursively list files in a directory."""
         try:
@@ -463,7 +505,7 @@ class FTPClient(FTPClientBase):
                         path=path,
                         name=self._ftp_host.path.basename(path),
                         size=stat_result.st_size,
-                        mtime=datetime.fromtimestamp(stat_result.st_mtime),
+                        mtime=self._get_file_mtime(path, stat_result.st_mtime),
                         is_dir=False,
                     )
                 )
@@ -489,7 +531,7 @@ class FTPClient(FTPClientBase):
                                 path=full_path,
                                 name=name,
                                 size=stat_result.st_size,
-                                mtime=datetime.fromtimestamp(stat_result.st_mtime),
+                                mtime=self._get_file_mtime(full_path, stat_result.st_mtime),
                                 is_dir=False,
                             )
                         )
@@ -531,7 +573,7 @@ class FTPClient(FTPClientBase):
                 path=remote_path,
                 name=self._ftp_host.path.basename(remote_path),
                 size=stat_result.st_size,
-                mtime=datetime.fromtimestamp(stat_result.st_mtime),
+                mtime=self._get_file_mtime(remote_path, stat_result.st_mtime),
                 is_dir=self._ftp_host.path.isdir(remote_path),
             )
         except ftputil.error.FTPError as e:

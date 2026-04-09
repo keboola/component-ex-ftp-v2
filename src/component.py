@@ -36,6 +36,11 @@ class Component(ComponentBase):
         hostname = self.config.connection.hostname
         logging.info(f"Starting extraction from {protocol} server: {hostname}")
 
+        # Capture the extraction start time before any work begins.
+        # Using this as the incremental threshold (instead of the time after extraction finishes)
+        # avoids a race window where files uploaded during extraction could be missed on the next run.
+        extraction_start_time = datetime.now().timestamp()
+
         logging.info("Loading state file..")
         previous_state = self.get_state_file() or {}
         last_extraction_time = previous_state.get("last_extraction_time", 0)
@@ -75,7 +80,7 @@ class Component(ComponentBase):
                 self._write_table_manifest(extracted_table, self.config)
                 files_count = 1
 
-            new_state = {"last_extraction_time": datetime.now().timestamp(), "files_extracted": files_count}
+            new_state = {"last_extraction_time": extraction_start_time, "files_extracted": files_count}
             self.write_state_file(new_state)
 
             if self.config.mode == Mode.FILE:
