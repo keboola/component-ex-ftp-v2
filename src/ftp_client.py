@@ -7,7 +7,7 @@ import os
 import shutil
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import BinaryIO
 
 import backoff
@@ -36,7 +36,13 @@ class FTPClientBase(ABC):
     MAX_RETRIES = 2
 
     def __init__(
-        self, hostname: str, port: int, user: str, password: str, connection_timeout: int = 30, max_retries: int = 2
+        self,
+        hostname: str,
+        port: int,
+        user: str,
+        password: str,
+        connection_timeout: int = 30,
+        max_retries: int = 2,
     ):
         self.hostname = hostname
         self.port = port
@@ -115,7 +121,9 @@ class SFTPClient(FTPClientBase):
         max_retries: int = 2,
         base_path: str = "",
     ):
-        super().__init__(hostname, port, user, password, connection_timeout, max_retries)
+        super().__init__(
+            hostname, port, user, password, connection_timeout, max_retries
+        )
         self.ssh_config = ssh_config
         self.passphrase = passphrase
         self.base_path = base_path
@@ -127,8 +135,12 @@ class SFTPClient(FTPClientBase):
         backoff.expo,
         (paramiko.SSHException, EOFError, OSError),
         max_tries=3,
-        on_backoff=lambda details: logging.info(f"Retrying SFTP connection (attempt {details['tries']})..."),
-        on_giveup=lambda details: logging.error("Failed to connect to SFTP server after retries"),
+        on_backoff=lambda details: logging.info(
+            f"Retrying SFTP connection (attempt {details['tries']})..."
+        ),
+        on_giveup=lambda details: logging.error(
+            "Failed to connect to SFTP server after retries"
+        ),
     )
     def connect(self) -> None:
         """Establish SFTP connection."""
@@ -137,17 +149,22 @@ class SFTPClient(FTPClientBase):
 
             # Create transport
             self._transport = paramiko.Transport(
-                (self.hostname, self.port), disabled_algorithms=self.ssh_config.disabled_algorithms or None
+                (self.hostname, self.port),
+                disabled_algorithms=self.ssh_config.disabled_algorithms or None,
             )
             self._transport.banner_timeout = self.ssh_config.banner_timeout
 
             # Prepare authentication
             pkey = None
             if self.ssh_config.private_key:
-                pkey = self._parse_private_key(self.ssh_config.private_key, self.passphrase or None)
+                pkey = self._parse_private_key(
+                    self.ssh_config.private_key, self.passphrase or None
+                )
 
             # Connect
-            self._transport.connect(username=self.user, password=self.password or None, pkey=pkey)
+            self._transport.connect(
+                username=self.user, password=self.password or None, pkey=pkey
+            )
 
             # Create SFTP client
             self._sftp = paramiko.SFTPClient.from_transport(self._transport)
@@ -158,14 +175,22 @@ class SFTPClient(FTPClientBase):
                     self._sftp.chdir(self.base_path)
                     self.logger.info(f"Changed to base directory: {self.base_path}")
                 except IOError as e:
-                    raise UserException(f"Failed to change to base directory '{self.base_path}': {str(e)}")
+                    raise UserException(
+                        f"Failed to change to base directory '{self.base_path}': {str(e)}"
+                    )
 
             # Get the actual current working directory path on the server
             # This resolves the real path in chroot/jailed environments (e.g., AWS Transfer Family)
             try:
-                self._actual_cwd = self._sftp.normalize(".") if not self.base_path else f"/{self.base_path.strip('/')}"
+                self._actual_cwd = (
+                    self._sftp.normalize(".")
+                    if not self.base_path
+                    else f"/{self.base_path.strip('/')}"
+                )
             except Exception:
-                self._actual_cwd = f"/{self.base_path.strip('/')}" if self.base_path else ""
+                self._actual_cwd = (
+                    f"/{self.base_path.strip('/')}" if self.base_path else ""
+                )
 
             self.logger.info("Successfully connected to SFTP server")
 
@@ -176,7 +201,9 @@ class SFTPClient(FTPClientBase):
         except Exception as e:
             raise UserException(f"Failed to connect to SFTP server: {str(e)}")
 
-    def _parse_private_key(self, key_string: str, passphrase: str | None = None) -> paramiko.PKey:
+    def _parse_private_key(
+        self, key_string: str, passphrase: str | None = None
+    ) -> paramiko.PKey:
         """Parse private key from string."""
         key_file = io.StringIO(key_string)
 
@@ -194,7 +221,9 @@ class SFTPClient(FTPClientBase):
             except paramiko.SSHException:
                 continue
 
-        raise UserException("Unable to parse SSH private key. Unsupported key type or invalid format.")
+        raise UserException(
+            "Unable to parse SSH private key. Unsupported key type or invalid format."
+        )
 
     def disconnect(self) -> None:
         """Close SFTP connection."""
@@ -245,7 +274,9 @@ class SFTPClient(FTPClientBase):
 
         return files
 
-    def _list_files_recursive(self, path: str, files: list[FileInfo], recursive: bool) -> None:
+    def _list_files_recursive(
+        self, path: str, files: list[FileInfo], recursive: bool
+    ) -> None:
         """Recursively list files in a directory."""
         try:
             for attr in self._sftp.listdir_attr(path):
@@ -280,7 +311,9 @@ class SFTPClient(FTPClientBase):
                             path=full_path,
                             name=attr.filename,
                             size=attr.st_size or 0,
-                            mtime=datetime.fromtimestamp(attr.st_mtime) if attr.st_mtime else datetime.now(),
+                            mtime=datetime.fromtimestamp(attr.st_mtime, tz=timezone.utc)
+                            if attr.st_mtime
+                            else datetime.now(tz=timezone.utc),
                             is_dir=False,
                         )
                     )
@@ -338,11 +371,15 @@ class SFTPClient(FTPClientBase):
                 path=original_path,
                 name=os.path.basename(original_path),
                 size=attr.st_size or 0,
-                mtime=datetime.fromtimestamp(attr.st_mtime) if attr.st_mtime else datetime.now(),
+                mtime=datetime.fromtimestamp(attr.st_mtime, tz=timezone.utc)
+                if attr.st_mtime
+                else datetime.now(tz=timezone.utc),
                 is_dir=self._is_directory(attr),
             )
         except IOError as e:
-            raise UserException(f"Failed to get file info for {original_path}: {str(e)}")
+            raise UserException(
+                f"Failed to get file info for {original_path}: {str(e)}"
+            )
 
 
 class ExplicitFTPS(ftplib.FTP_TLS):
@@ -361,7 +398,9 @@ class ImplicitFTPS(ftplib.FTP_TLS):
         super().__init__(*args, **kwargs)
         self.encoding = "utf-8"
         # Implicit FTPS wraps the control channel immediately
-        self.ssl_version = getattr(kwargs.get("context", None), "_maximum_version", None)
+        self.ssl_version = getattr(
+            kwargs.get("context", None), "_maximum_version", None
+        )
 
 
 class FTPClient(FTPClientBase):
@@ -378,22 +417,31 @@ class FTPClient(FTPClientBase):
         connection_timeout: int = 30,
         max_retries: int = 2,
     ):
-        super().__init__(hostname, port, user, password, connection_timeout, max_retries)
+        super().__init__(
+            hostname, port, user, password, connection_timeout, max_retries
+        )
         self.protocol = protocol
         self.passive_mode = passive_mode
         self._ftp_host: ftputil.FTPHost | None = None
+        self._mdtm_supported: bool | None = None
 
     @backoff.on_exception(
         backoff.expo,
         (ftplib.error_temp, ftplib.error_perm, OSError),
         max_tries=3,
-        on_backoff=lambda details: logging.info(f"Retrying FTP connection (attempt {details['tries']})..."),
-        on_giveup=lambda details: logging.error("Failed to connect to FTP server after retries"),
+        on_backoff=lambda details: logging.info(
+            f"Retrying FTP connection (attempt {details['tries']})..."
+        ),
+        on_giveup=lambda details: logging.error(
+            "Failed to connect to FTP server after retries"
+        ),
     )
     def connect(self) -> None:
         """Establish FTP/FTPS connection."""
         try:
-            self.logger.info(f"Connecting to {self.protocol.value.upper()} server {self.hostname}:{self.port}")
+            self.logger.info(
+                f"Connecting to {self.protocol.value.upper()} server {self.hostname}:{self.port}"
+            )
 
             # Select base class based on protocol
             if self.protocol == Protocol.FTP:
@@ -410,13 +458,40 @@ class FTPClient(FTPClientBase):
                 base_class=base_class,
                 port=self.port,
                 use_passive_mode=self.passive_mode,
-                encrypt_data_channel=True if self.protocol in [Protocol.EX_FTPS, Protocol.IM_FTPS] else False,
+                encrypt_data_channel=True
+                if self.protocol in [Protocol.EX_FTPS, Protocol.IM_FTPS]
+                else False,
             )
 
             # Connect
-            self._ftp_host = ftputil.FTPHost(self.hostname, self.user, self.password, session_factory=session_factory)
+            self._ftp_host = ftputil.FTPHost(
+                self.hostname, self.user, self.password, session_factory=session_factory
+            )
 
-            self.logger.info(f"Successfully connected to {self.protocol.value.upper()} server")
+            # Synchronize time offset between FTP server and client.
+            # Without this, ftputil assumes time_shift=0 (server time == UTC).
+            # If the server is in a different timezone (e.g. CET = UTC+1/+2),
+            # its year-guessing logic can misinterpret recent LIST timestamps
+            # as "in the future" and subtract a year, producing wrong mtimes.
+            try:
+                self._ftp_host.synchronize_times()
+                self.logger.info(
+                    f"Synchronized FTP time shift: {self._ftp_host.time_shift():.0f}s"
+                )
+            except ftputil.error.TimeShiftError:
+                self.logger.warning(
+                    "Could not synchronize FTP server time (read-only access?). "
+                    "Falling back to MDTM for file timestamps."
+                )
+            except ftputil.error.FTPError:
+                self.logger.warning(
+                    "Could not synchronize FTP server time. "
+                    "Falling back to MDTM for file timestamps."
+                )
+
+            self.logger.info(
+                f"Successfully connected to {self.protocol.value.upper()} server"
+            )
 
         except ftplib.error_perm as e:
             error_msg = str(e)
@@ -449,7 +524,53 @@ class FTPClient(FTPClientBase):
 
         return files
 
-    def _list_files_recursive(self, path: str, files: list[FileInfo], recursive: bool) -> None:
+    def _get_mdtm_mtime(self, remote_path: str) -> datetime | None:
+        """Get file modification time using the MDTM command (RFC 3659).
+
+        MDTM returns timestamps in UTC (YYYYMMDDHHMMSS format), which is more
+        reliable than parsing the LIST response that uses the FTP server's local
+        timezone with no timezone marker.
+
+        Returns:
+            UTC-aware datetime if MDTM is supported, None otherwise.
+        """
+        if self._mdtm_supported is False:
+            return None
+
+        try:
+            session = self._ftp_host._session  # type: ignore[union-attr]
+            response = session.sendcmd(f"MDTM {remote_path}")
+            if response.startswith("213 "):
+                timestamp_str = response[4:].strip()
+                mtime_utc = datetime.strptime(
+                    timestamp_str[:14], "%Y%m%d%H%M%S"
+                ).replace(tzinfo=timezone.utc)
+                self._mdtm_supported = True
+                return mtime_utc
+        except ftplib.error_perm:
+            # 5xx response = server doesn't support MDTM, cache and stop trying
+            if self._mdtm_supported is None:
+                self.logger.info(
+                    "MDTM command not supported by server, using LIST-based timestamps"
+                )
+                self._mdtm_supported = False
+
+        return None
+
+    def _get_file_mtime(self, remote_path: str, stat_mtime: float) -> datetime:
+        """Get the best available file modification time.
+
+        Prefers MDTM (accurate UTC) over LIST-based mtime (server-local timezone).
+        Both paths return UTC-aware datetimes.
+        """
+        mdtm_time = self._get_mdtm_mtime(remote_path)
+        if mdtm_time is not None:
+            return mdtm_time
+        return datetime.fromtimestamp(stat_mtime, tz=timezone.utc)
+
+    def _list_files_recursive(
+        self, path: str, files: list[FileInfo], recursive: bool
+    ) -> None:
         """Recursively list files in a directory."""
         try:
             if not self._ftp_host.path.exists(path):
@@ -463,7 +584,7 @@ class FTPClient(FTPClientBase):
                         path=path,
                         name=self._ftp_host.path.basename(path),
                         size=stat_result.st_size,
-                        mtime=datetime.fromtimestamp(stat_result.st_mtime),
+                        mtime=self._get_file_mtime(path, stat_result.st_mtime),
                         is_dir=False,
                     )
                 )
@@ -489,7 +610,9 @@ class FTPClient(FTPClientBase):
                                 path=full_path,
                                 name=name,
                                 size=stat_result.st_size,
-                                mtime=datetime.fromtimestamp(stat_result.st_mtime),
+                                mtime=self._get_file_mtime(
+                                    full_path, stat_result.st_mtime
+                                ),
                                 is_dir=False,
                             )
                         )
@@ -531,7 +654,7 @@ class FTPClient(FTPClientBase):
                 path=remote_path,
                 name=self._ftp_host.path.basename(remote_path),
                 size=stat_result.st_size,
-                mtime=datetime.fromtimestamp(stat_result.st_mtime),
+                mtime=self._get_file_mtime(remote_path, stat_result.st_mtime),
                 is_dir=self._ftp_host.path.isdir(remote_path),
             )
         except ftputil.error.FTPError as e:

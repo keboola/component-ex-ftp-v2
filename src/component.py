@@ -22,7 +22,9 @@ class Component(ComponentBase):
             port=self.config.connection.port,
             user=self.config.connection.user,
             password=self.config.connection.password,
-            ssh_config=self.config.connection.ssh if self.config.connection.protocol.value == "sftp" else None,
+            ssh_config=self.config.connection.ssh
+            if self.config.connection.protocol.value == "sftp"
+            else None,
             passphrase=self.config.connection.passphrase,
             passive_mode=self.config.connection.passive_mode,
             connection_timeout=self.config.connection.connection_timeout,
@@ -34,6 +36,11 @@ class Component(ComponentBase):
         protocol = self.config.connection.protocol.value.upper()
         hostname = self.config.connection.hostname
         logging.info(f"Starting extraction from {protocol} server: {hostname}")
+
+        # Capture extraction start time before any work begins.
+        # Using this as the incremental threshold (instead of time after extraction)
+        # avoids a race window where files uploaded during extraction could be missed.
+        extraction_start_time = datetime.now().timestamp()
 
         previous_state = self.get_state_file() or {}
         last_extraction_time = previous_state.get("last_extraction_time", 0)
@@ -51,9 +58,13 @@ class Component(ComponentBase):
                 return
 
             if self.config.incremental_mode and last_extraction_time:
-                logging.info(f"Incremental mode: filtering files modified after {last_extraction_time}")
+                logging.info(
+                    f"Incremental mode: filtering files modified after {last_extraction_time}"
+                )
                 matcher = FileMatcher(self._client)
-                files_to_extract = matcher.filter_by_modification_time(files_to_extract, last_extraction_time)
+                files_to_extract = matcher.filter_by_modification_time(
+                    files_to_extract, last_extraction_time
+                )
 
                 if not files_to_extract:
                     logging.info("No new or modified files found")
@@ -64,7 +75,10 @@ class Component(ComponentBase):
             extracted_files = self._extract_files(files_to_extract, self.config)
             self._write_manifests(extracted_files, self.config.tags)
 
-            new_state = {"last_extraction_time": datetime.now().timestamp(), "files_extracted": len(extracted_files)}
+            new_state = {
+                "last_extraction_time": extraction_start_time,
+                "files_extracted": len(extracted_files),
+            }
             self.write_state_file(new_state)
 
             logging.info(f"Successfully extracted {len(extracted_files)} file(s)")
@@ -163,7 +177,9 @@ class Component(ComponentBase):
 
         return extracted_files
 
-    def _get_output_filename(self, file_info: FileInfo, include_path: bool, append_timestamp: bool) -> str:
+    def _get_output_filename(
+        self, file_info: FileInfo, include_path: bool, append_timestamp: bool
+    ) -> str:
         if include_path:
             filename = file_info.path.replace("/", "_").replace("\\", "_").lstrip("_")
         else:
@@ -179,7 +195,10 @@ class Component(ComponentBase):
     def _write_manifests(self, filenames: list[str], tags: list[str]) -> None:
         for filename in filenames:
             output_file = self.create_out_file_definition(
-                name=filename, tags=tags if tags else [], is_public=False, is_permanent=True
+                name=filename,
+                tags=tags if tags else [],
+                is_public=False,
+                is_permanent=True,
             )
             self.write_manifest(output_file)
 
