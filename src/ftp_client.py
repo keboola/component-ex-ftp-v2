@@ -494,21 +494,20 @@ class FTPClient(FTPClientBase):
         session = self._ftp_host._session
         try:
             response = session.sendcmd(f"MDTM {remote_path}")
-        except ftplib.error_perm as e:
-            error_code = str(e)[:3]
-            if error_code in {"500", "502", "504"}:
-                # MDTM is not supported by this server; cache the result.
-                if self._mdtm_supported is None:
-                    self.logger.info("MDTM command not supported by server, falling back to LIST-based timestamps")
-                self._mdtm_supported = False
-            # For 550 (file-specific) or other codes, don't poison the cache.
+        except ftplib.error_perm:
+            # Any 5xx permanent error means the server doesn't support MDTM.
+            if self._mdtm_supported is None:
+                self.logger.info("MDTM command not supported by server, falling back to LIST-based timestamps")
+            self._mdtm_supported = False
             return None
         except (ftplib.Error, OSError):
             # Transient error — fall back without disabling MDTM for the session.
             return None
 
-        # Response format: "213 YYYYMMDDHHMMSS" (possibly with fractional seconds)
-        if not response.startswith("213 "):
+        # Success response is typically "213 YYYYMMDDHHMMSS" but some servers
+        # use other 2xx codes (e.g. 253).  Accept any 2xx response.
+        resp_code = response[:3]
+        if not resp_code.isdigit() or not resp_code.startswith("2"):
             return None
 
         timestamp_str = response[4:].strip()
