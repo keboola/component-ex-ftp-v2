@@ -1,6 +1,7 @@
 import csv
 import io
 import logging
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -39,7 +40,8 @@ class Component(ComponentBase):
         # Capture the extraction start time before any work begins.
         # Using this as the incremental threshold (instead of the time after extraction finishes)
         # avoids a race window where files uploaded during extraction could be missed on the next run.
-        extraction_start_time = datetime.now().timestamp()
+        # time.time() is timezone-independent (always UTC epoch).
+        extraction_start_time = time.time()
 
         logging.info("Loading state file..")
         previous_state = self.get_state_file() or {}

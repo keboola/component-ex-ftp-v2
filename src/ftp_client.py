@@ -383,6 +383,7 @@ class FTPClient(FTPClientBase):
         self.passive_mode = passive_mode
         self._ftp_host: ftputil.FTPHost | None = None
         self._mdtm_supported: bool | None = None
+        self._time_shift_synced: bool = False
 
     @backoff.on_exception(
         backoff.expo,
@@ -417,6 +418,10 @@ class FTPClient(FTPClientBase):
             # Connect
             self._ftp_host = ftputil.FTPHost(self.hostname, self.user, self.password, session_factory=session_factory)
 
+            # Reset per-connection state so reconnects don't carry stale values.
+            self._mdtm_supported = None
+            self._time_shift_synced = False
+
             # Synchronize time offset between FTP server and client.
             # Without this, ftputil assumes time_shift=0 (server time == UTC).
             # If the server is in a different timezone (e.g. CET = UTC+1/+2),
@@ -424,6 +429,7 @@ class FTPClient(FTPClientBase):
             # as "in the future" and subtract a year, producing wrong mtimes.
             try:
                 self._ftp_host.synchronize_times()
+                self._time_shift_synced = True
                 self.logger.info(
                     f"Synchronized FTP time shift: {self._ftp_host.time_shift():.0f}s"
                 )
@@ -484,33 +490,49 @@ class FTPClient(FTPClientBase):
         if self._mdtm_supported is False:
             return None
 
+        # Access the underlying ftplib session to send the MDTM command
+        session = self._ftp_host._session
         try:
-            # Access the underlying ftplib session to send the MDTM command
-            session = self._ftp_host._session
             response = session.sendcmd(f"MDTM {remote_path}")
-            # Response format: "213 YYYYMMDDHHMMSS" (possibly with fractional seconds)
-            if response.startswith("213 "):
-                timestamp_str = response[4:].strip()
-                # Parse the UTC timestamp (YYYYMMDDHHMMSS)
-                mtime_utc = datetime.strptime(timestamp_str[:14], "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
-                self._mdtm_supported = True
-                return mtime_utc
-        except Exception:
-            # MDTM not supported by this server, fall back to LIST-based mtime
-            if self._mdtm_supported is None:
-                self.logger.info("MDTM command not supported by server, falling back to LIST-based timestamps")
+        except ftplib.error_perm as e:
+            error_code = str(e)[:3]
+            if error_code in {"500", "502", "504"}:
+                # MDTM is not supported by this server; cache the result.
+                if self._mdtm_supported is None:
+                    self.logger.info("MDTM command not supported by server, falling back to LIST-based timestamps")
                 self._mdtm_supported = False
-        return None
+            # For 550 (file-specific) or other codes, don't poison the cache.
+            return None
+        except (ftplib.Error, OSError):
+            # Transient error — fall back without disabling MDTM for the session.
+            return None
+
+        # Response format: "213 YYYYMMDDHHMMSS" (possibly with fractional seconds)
+        if not response.startswith("213 "):
+            return None
+
+        timestamp_str = response[4:].strip()
+        try:
+            mtime_utc = datetime.strptime(timestamp_str[:14], "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None
+
+        self._mdtm_supported = True
+        return mtime_utc
 
     def _get_file_mtime(self, remote_path: str, stat_mtime: float) -> datetime:
         """Get the best available file modification time.
 
-        Prefers MDTM (accurate UTC) over LIST-based mtime (server-local timezone).
+        When synchronize_times() succeeded, LIST-based timestamps are already
+        corrected via time_shift, so MDTM is skipped to avoid extra round-trips.
+        When it failed, MDTM is preferred for accurate UTC timestamps.
+        Always returns a UTC-aware datetime.
         """
-        mdtm_time = self._get_mdtm_mtime(remote_path)
-        if mdtm_time is not None:
-            return mdtm_time
-        return datetime.fromtimestamp(stat_mtime)
+        if not self._time_shift_synced:
+            mdtm_time = self._get_mdtm_mtime(remote_path)
+            if mdtm_time is not None:
+                return mdtm_time
+        return datetime.fromtimestamp(stat_mtime, tz=timezone.utc)
 
     def _list_files_recursive(self, path: str, files: list[FileInfo], recursive: bool) -> None:
         """Recursively list files in a directory."""
