@@ -481,6 +481,11 @@ class FTPClient(FTPClientBase):
             if resp[:3].isdigit() and resp[:1] == "2":
                 mdtm_ts = datetime.strptime(resp[4:18], "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
                 shift = round((stat_mtime - mdtm_ts.timestamp()) / 60) * 60
+                # Real timezone offsets are at most ±14h (UTC-12 to UTC+14).
+                # A larger shift means the LIST mtime was unreliable (e.g. wrong year).
+                if abs(shift) > 86400:
+                    self.logger.warning(f"Computed time shift {shift:.0f}s exceeds ±24h — skipping calibration")
+                    return
                 self._ftp_host.set_time_shift(shift)
                 self.logger.info(f"Calibrated FTP time shift via MDTM: {shift:.0f}s")
         except (ftplib.error_perm, ftplib.Error, OSError):
