@@ -1,6 +1,7 @@
 import csv
 import io
 import logging
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -35,6 +36,12 @@ class Component(ComponentBase):
         protocol = self.config.connection.protocol.value.upper()
         hostname = self.config.connection.hostname
         logging.info(f"Starting extraction from {protocol} server: {hostname}")
+
+        # Capture the extraction start time before any work begins.
+        # Using this as the incremental threshold (instead of the time after extraction finishes)
+        # avoids a race window where files uploaded during extraction could be missed on the next run.
+        # time.time() is timezone-independent (always UTC epoch).
+        extraction_start_time = time.time()
 
         logging.info("Loading state file..")
         previous_state = self.get_state_file() or {}
@@ -75,7 +82,7 @@ class Component(ComponentBase):
                 self._write_table_manifest(extracted_table, self.config)
                 files_count = 1
 
-            new_state = {"last_extraction_time": datetime.now().timestamp(), "files_extracted": files_count}
+            new_state = {"last_extraction_time": extraction_start_time, "files_extracted": files_count}
             self.write_state_file(new_state)
 
             if self.config.mode == Mode.FILE:
